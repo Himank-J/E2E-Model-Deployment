@@ -1,0 +1,25 @@
+defaults:
+  - _self_
+
+_target_: pytorch_lightning.Trainer
+
+# Training
+max_epochs: 3
+accelerator: "auto"
+devices: 1
+
+# Validation
+val_check_interval: 1.0
+check_val_every_n_epoch: 1
+
+# Performance
+deterministic: False
+benchmark: True
+
+# Debugging
+fast_dev_run: False
+overfit_batches: 0.0
+
+# Progress bar
+enable_progress_bar: True
+enable_model_summary: True 

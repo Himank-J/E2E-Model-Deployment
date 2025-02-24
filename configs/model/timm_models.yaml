@@ -1,0 +1,9 @@
+_target_: src.models.timm_module.TIMMLightningModule
+
+# Model parameters
+model_name: "resnet18"
+num_classes: ${dataset.num_classes}  
+pretrained: true
+learning_rate: 0.001
+weight_decay: 0.0001
+data_dir: ${dataset.path}  

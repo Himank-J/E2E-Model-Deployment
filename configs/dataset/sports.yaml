@@ -1,0 +1,6 @@
+name: sports
+path: ${data_dir}/sports
+num_classes: 7
+image_size: 224
+batch_size: 32
+num_workers: 4 

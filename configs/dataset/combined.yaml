@@ -1,0 +1,6 @@
+name: combined
+path: ${data_dir}/main_data
+num_classes: 13  # 6 from Intel + 7 from Sports
+image_size: 224
+batch_size: 64
+num_workers: 4 

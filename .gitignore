@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Hydra
+outputs/
+multirun/
+
+# PyTorch Lightning
+lightning_logs/
+.pytest_cache/
+
+# DVC
+/data/*
+!*.dvc
+!*.gitignore
+.dvc/tmp
+.dvc/cache
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Misc
+.DS_Store 
+
+# Data
+data/
+
+# model-data
+model-data/

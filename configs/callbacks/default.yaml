@@ -1,0 +1,30 @@
+defaults:
+  - model_checkpoint
+  - early_stopping
+  - model_summary
+  - rich_progress_bar
+  - _self_
+
+model_checkpoint:
+  _target_: pytorch_lightning.callbacks.ModelCheckpoint
+  dirpath: ${paths.checkpoint_dir}
+  filename: "epoch_{epoch:03d}-val_loss_{val_loss:.2f}"
+  monitor: "val_acc" 
+  mode: "max"
+  save_last: True
+  save_top_k: 1
+  verbose: False
+  auto_insert_metric_name: False
+
+early_stopping:
+  _target_: pytorch_lightning.callbacks.EarlyStopping
+  monitor: "val_acc"
+  patience: 100
+  mode: "max"
+
+model_summary:
+  _target_: pytorch_lightning.callbacks.ModelSummary
+  max_depth: -1
+
+rich_progress_bar:
+  _target_: pytorch_lightning.callbacks.RichProgressBar

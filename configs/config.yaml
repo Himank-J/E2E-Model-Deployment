@@ -1,0 +1,17 @@
+defaults:
+  - paths: default
+  - dataset: intel
+  - model: timm_models
+  - callbacks: default
+  - training: default
+  - _self_
+
+seed: 42
+data_dir: ${paths.data_dir}
+output_dir: ${paths.output_dir}
+
+# Disable hydra working directory creation
+hydra:
+  run:
+    dir: .
+  output_subdir: null 
