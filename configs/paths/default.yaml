@@ -2,4 +2,7 @@ data_dir: ${oc.env:PROJECT_ROOT}/data
 output_dir: ${oc.env:PROJECT_ROOT}/outputs
 checkpoint_dir: ${paths.output_dir}/checkpoints
 model_dir: ${oc.env:PROJECT_ROOT}/model-data
-results_dir: ${paths.model_dir}/results 
+models_dir: ${paths.model_dir}/models
+results_dir: ${paths.model_dir}/results
+infer_input_dir: ${oc.env:PROJECT_ROOT}/infer_samples/input
+infer_output_dir: ${oc.env:PROJECT_ROOT}/infer_samples/output 

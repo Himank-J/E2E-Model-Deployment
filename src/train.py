@@ -45,6 +45,7 @@ def main(cfg: DictConfig):
     os.makedirs(cfg.paths.checkpoint_dir, exist_ok=True)
     os.makedirs(cfg.paths.model_dir, exist_ok=True)
     os.makedirs(cfg.paths.results_dir, exist_ok=True)
+    os.makedirs(cfg.paths.models_dir, exist_ok=True)  
     
     # Create model_output directory
     model_output_dir = os.path.join(cfg.paths.model_dir, 'results')
@@ -110,9 +111,9 @@ def main(cfg: DictConfig):
     
     print(f"Test results saved to: {results_path}")
     
-    # Save final model to model-data directory
+    # Save final model to models directory
     final_model_path = os.path.join(
-        cfg.paths.model_dir, 
+        cfg.paths.models_dir, 
         f"{cfg.dataset.name}_{cfg.model.model_name}_final.ckpt"
     )
     trainer.save_checkpoint(final_model_path)
