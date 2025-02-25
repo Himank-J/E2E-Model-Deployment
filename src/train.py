@@ -5,6 +5,8 @@ from omegaconf import DictConfig
 import pytorch_lightning as pl
 from pytorch_lightning import seed_everything
 import glob
+import json
+from datetime import datetime
 
 # Find project root from .project-root file
 def get_project_root():
@@ -42,6 +44,11 @@ def main(cfg: DictConfig):
     os.makedirs(cfg.output_dir, exist_ok=True)
     os.makedirs(cfg.paths.checkpoint_dir, exist_ok=True)
     os.makedirs(cfg.paths.model_dir, exist_ok=True)
+    os.makedirs(cfg.paths.results_dir, exist_ok=True)
+    
+    # Create model_output directory
+    model_output_dir = os.path.join(cfg.paths.model_dir, 'results')
+    os.makedirs(model_output_dir, exist_ok=True)
     
     # Initialize data module
     datamodule = ImageClassificationDataModule(
@@ -77,7 +84,31 @@ def main(cfg: DictConfig):
     trainer.fit(model, datamodule=datamodule)
     
     # Test model
-    trainer.test(model, datamodule=datamodule)
+    test_results = trainer.test(model, datamodule=datamodule)
+    
+    # Prepare results dictionary
+    results = {
+        "dataset": cfg.dataset.name,
+        "model": cfg.model.model_name,
+        "timestamp": datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+        "test_results": test_results[0],  # test_results is a list with one dict
+        "training_config": {
+            "max_epochs": cfg.training.max_epochs,
+            "batch_size": cfg.dataset.batch_size,
+            "learning_rate": cfg.model.learning_rate,
+            "weight_decay": cfg.model.weight_decay,
+            "num_classes": cfg.dataset.num_classes
+        }
+    }
+    
+    # Save test results
+    results_filename = f"{cfg.dataset.name}_{cfg.model.model_name}_results.json"
+    results_path = os.path.join(cfg.paths.results_dir, results_filename)
+    
+    with open(results_path, 'w') as f:
+        json.dump(results, f, indent=4)
+    
+    print(f"Test results saved to: {results_path}")
     
     # Save final model to model-data directory
     final_model_path = os.path.join(
