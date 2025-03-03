@@ -32,6 +32,7 @@ jobs:
 
     - name: Configure DVC
       run: |
+        cd model-training
         dvc remote add -d s3remote s3://${{ secrets.DVC_BUCKET }} -f
         dvc remote modify s3remote access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
         dvc remote modify s3remote secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -40,14 +41,25 @@ jobs:
     - name: Pull main_data using DVC
       run: |
         cd model-training
-        mkdir -p data
+        # Create data directory
+        mkdir -p data/main_data
+        # Pull data
         dvc pull -v data/main_data.dvc
-        ls -la data/  # Debug: check if data was pulled correctly
+        # Debug: List directories
+        echo "Contents of data directory:"
+        ls -la data/
+        echo "Contents of main_data directory:"
+        ls -la data/main_data/
 
     - name: Train model
       run: |
         cd model-training
+        # Set PYTHONPATH
         export PYTHONPATH=$PYTHONPATH:$(pwd)
+        # Debug: Print current directory and data path
+        pwd
+        ls -R data/main_data/
+        # Run training
         python src/train.py dataset=combined
 
     - name: Prepare artifacts for S3
