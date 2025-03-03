@@ -13,17 +13,16 @@ def get_project_root():
     """Get project root path from .project-root file"""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     while current_dir != '/':
-        project_root_file = os.path.join(current_dir, '.project-root')
-        if os.path.exists(project_root_file):
-            return current_dir
+        if os.path.exists(os.path.join(os.path.dirname(current_dir), '.project-root')):
+            return os.path.dirname(current_dir)  # Return parent of model-training
         current_dir = os.path.dirname(current_dir)
     raise FileNotFoundError("Could not find .project-root file")
 
 # Set PROJECT_ROOT environment variable
 os.environ["PROJECT_ROOT"] = get_project_root()
 
-# Add project root to PYTHONPATH
-sys.path.append(os.environ["PROJECT_ROOT"])
+# Add model-training to PYTHONPATH
+sys.path.append(os.path.join(os.environ["PROJECT_ROOT"], "model-training"))
 
 from src.data.datamodule import ImageClassificationDataModule
 from src.models.timm_module import TIMMLightningModule
