@@ -32,14 +32,17 @@ jobs:
 
     - name: Configure DVC
       run: |
-        dvc remote add -d storage s3://${{ secrets.DVC_BUCKET }} -f
+        dvc remote add -d s3remote s3://${{ secrets.DVC_BUCKET }} -f
+        dvc remote modify s3remote access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+        dvc remote modify s3remote secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        dvc remote modify s3remote region ${{ secrets.AWS_REGION }}
 
     - name: Pull main_data using DVC
       run: |
         cd model-training
-        dvc pull data/main_data.dvc
         mkdir -p data
-        mv main_data data/
+        dvc pull -v data/main_data.dvc
+        ls -la data/  # Debug: check if data was pulled correctly
 
     - name: Train model
       run: |
