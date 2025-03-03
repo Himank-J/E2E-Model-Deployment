@@ -29,11 +29,11 @@ lightning_logs/
 .pytest_cache/
 
 # DVC
-/data/*
-!*.dvc
-!*.gitignore
-.dvc/tmp
-.dvc/cache
+# /data/*
+# !*.dvc
+# !*.gitignore
+# .dvc/tmp
+# .dvc/cache
 
 # Environment
 .env
