@@ -1,0 +1,6 @@
+outs:
+- md5: some-md5-hash
+  size: some-size
+  nfiles: 8880
+  hash: md5
+  path: main_data
