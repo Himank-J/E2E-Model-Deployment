@@ -1,0 +1,98 @@
+name: Train and Deploy Model
+
+on:
+  push:
+    branches: [ develop ]
+
+jobs:
+  train-and-deploy:
+    runs-on: ubuntu-latest
+    
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+      DATETIME: $(date +'%Y%m%d_%H%M%S')
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0 
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r model-training/requirements.txt
+        pip install dvc dvc[s3] boto3 markdown
+
+    - name: Configure DVC
+      run: |
+        dvc remote add -d storage s3://${{ secrets.DVC_BUCKET }}
+
+    - name: Pull main_data using DVC
+      run: |
+        cd model-training
+        dvc pull data/main_data.dvc
+        mkdir -p data
+        mv main_data data/
+
+    - name: Train model
+      run: |
+        cd model-training
+        python src/train.py dataset=combined
+
+    - name: Prepare artifacts for S3
+      run: |
+        COMMIT_ID=$(git rev-parse --short HEAD)
+        DATETIME=$(date +'%Y%m%d_%H%M%S')
+        
+        # Create directory structure
+        mkdir -p "${DATETIME}/${COMMIT_ID}/model-data/results"
+        mkdir -p "${DATETIME}/${COMMIT_ID}/model-data/model-weights"
+        
+        # Copy results and model weights
+        cp model-training/model-data/results/*.json "${DATETIME}/${COMMIT_ID}/model-data/results/"
+        cp model-training/model-data/models/*.ckpt "${DATETIME}/${COMMIT_ID}/model-data/model-weights/"
+
+    - name: Upload to S3
+      run: |
+        COMMIT_ID=$(git rev-parse --short HEAD)
+        DATETIME=$(date +'%Y%m%d_%H%M%S')
+        
+        aws s3 sync "${DATETIME}/${COMMIT_ID}/model-data/" s3://${{ secrets.MODEL_BUCKET }}/ --exclude "*" --include "${DATETIME}/${COMMIT_ID}/*"
+
+    - uses: iterative/setup-cml@v2
+
+    - name: Generate Performance Report
+      id: report
+      env:
+        REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        COMMIT_ID=$(git rev-parse --short HEAD)
+        DATETIME=$(date +'%Y%m%d_%H%M%S')
+        
+        # Read metrics from JSON
+        METRICS=$(cat model-training/model-data/results/combined_resnet18_results.json)
+        
+        # Create report
+        cat << EOF > report.md
+        ### Model Training Report
+        **Commit:** ${COMMIT_ID}
+        **Timestamp:** ${DATETIME}
+        
+        #### Performance Metrics
+        \`\`\`json
+        $METRICS
+        \`\`\`
+        
+        #### S3 Storage Location
+        s3://${{ secrets.MODEL_BUCKET }}/${DATETIME}/${COMMIT_ID}/model-data/
+        EOF
+        
+        # Create CML report
+        cml comment create report.md 
