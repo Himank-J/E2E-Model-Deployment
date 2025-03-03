@@ -32,7 +32,7 @@ jobs:
 
     - name: Configure DVC
       run: |
-        dvc remote add -d storage s3://${{ secrets.DVC_BUCKET }}
+        dvc remote add -d storage s3://${{ secrets.DVC_BUCKET }} -f
 
     - name: Pull main_data using DVC
       run: |
