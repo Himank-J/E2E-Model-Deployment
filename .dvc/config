@@ -1,4 +1,4 @@
 [core]
-    remote = storage
-['remote "storage"']
-    url = s3://your-bucket-name
+    remote = s3remote
+['remote "s3remote"']
+    url = s3://classification-training-data-dvc

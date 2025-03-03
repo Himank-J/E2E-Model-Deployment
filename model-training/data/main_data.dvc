@@ -1,6 +1,6 @@
 outs:
-- md5: some-md5-hash
-  size: some-size
+- md5: 324dcf2beefebe93ff4392b0ecf40252.dir
+  size: 149179148
   nfiles: 8880
   hash: md5
   path: main_data
