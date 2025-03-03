@@ -47,6 +47,7 @@ jobs:
     - name: Train model
       run: |
         cd model-training
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
         python src/train.py dataset=combined
 
     - name: Prepare artifacts for S3
