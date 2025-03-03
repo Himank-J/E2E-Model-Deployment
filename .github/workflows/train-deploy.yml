@@ -33,23 +33,34 @@ jobs:
     - name: Configure DVC
       run: |
         cd model-training
+        # Initialize DVC
+        dvc init
+        # Configure remote
         dvc remote add -d s3remote s3://${{ secrets.DVC_BUCKET }} -f
         dvc remote modify s3remote access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
         dvc remote modify s3remote secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         dvc remote modify s3remote region ${{ secrets.AWS_REGION }}
+        # Debug: Show DVC config
+        cat .dvc/config
+        # Debug: List remote contents
+        dvc ls s3://classification-training-data-dvc
 
     - name: Pull main_data using DVC
       run: |
         cd model-training
         # Create data directory
         mkdir -p data/main_data
-        # Pull data
+        # Debug: Show current directory
+        pwd
+        # Debug: Show DVC file contents
+        cat data/main_data.dvc
+        # Pull data with verbose output
         dvc pull -v data/main_data.dvc
         # Debug: List directories
         echo "Contents of data directory:"
         ls -la data/
         echo "Contents of main_data directory:"
-        ls -la data/main_data/
+        ls -la data/main_data/ || echo "main_data directory not found"
 
     - name: Train model
       run: |
