@@ -32,44 +32,27 @@ jobs:
 
     - name: Configure DVC
       run: |
-        cd model-training
-        # Configure remote
-        dvc remote add -d s3remote s3://${{ secrets.DVC_BUCKET }} -f
-        dvc remote modify s3remote access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
-        dvc remote modify s3remote secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        dvc remote modify s3remote region ${{ secrets.AWS_REGION }}
-        # Debug: Show DVC config
-        cat .dvc/config
-        # Debug: List remote contents
-        dvc ls s3://classification-training-data-dvc
-
-    - name: Pull main_data using DVC
+        # Configure remote with endpoint URL
+        dvc remote add -d s3remote s3://${{ secrets.DVC_BUCKET }}
+        
+    - name: Fetch Data
       run: |
         cd model-training
-        # Create data directory
-        mkdir -p data/main_data
-        # Debug: Show current directory
-        pwd
-        # Debug: Show DVC file contents
-        cat data/main_data.dvc
-        # Pull data with verbose output
-        dvc pull -v data/main_data.dvc
-        # Debug: List directories
-        echo "Contents of data directory:"
-        ls -la data/
-        echo "Contents of main_data directory:"
-        ls -la data/main_data/ || echo "main_data directory not found"
+        python src/data/fetch_data.py
+        # Debug: List data directory contents
+        ls -R data/
 
     - name: Train model
       run: |
         cd model-training
-        # Set PYTHONPATH
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        # Debug: Print current directory and data path
-        pwd
-        ls -R data/main_data/
-        # Run training
         python src/train.py dataset=combined
+
+    - name: Run Inference on Valid Set
+      run: |
+        cd model-training
+        mkdir -p infer_samples/output
+        python src/infer.py dataset=combined --valid-set-only
 
     - name: Prepare artifacts for S3
       run: |
@@ -79,17 +62,19 @@ jobs:
         # Create directory structure
         mkdir -p "${DATETIME}/${COMMIT_ID}/model-data/results"
         mkdir -p "${DATETIME}/${COMMIT_ID}/model-data/model-weights"
+        mkdir -p "${DATETIME}/${COMMIT_ID}/model-data/inference"
         
-        # Copy results and model weights
+        # Copy results, model weights, and inference results
         cp model-training/model-data/results/*.json "${DATETIME}/${COMMIT_ID}/model-data/results/"
         cp model-training/model-data/models/*.ckpt "${DATETIME}/${COMMIT_ID}/model-data/model-weights/"
+        cp -r model-training/infer_samples/output/* "${DATETIME}/${COMMIT_ID}/model-data/inference/"
 
     - name: Upload to S3
       run: |
         COMMIT_ID=$(git rev-parse --short HEAD)
         DATETIME=$(date +'%Y%m%d_%H%M%S')
         
-        aws s3 sync "${DATETIME}/${COMMIT_ID}/model-data/" s3://${{ secrets.MODEL_BUCKET }}/ --exclude "*" --include "${DATETIME}/${COMMIT_ID}/*"
+        aws s3 sync "${DATETIME}/${COMMIT_ID}/model-data/" s3://${{ secrets.MODEL_BUCKET }}/${DATETIME}/${COMMIT_ID}/model-data/
 
     - uses: iterative/setup-cml@v2
 
@@ -104,6 +89,9 @@ jobs:
         # Read metrics from JSON
         METRICS=$(cat model-training/model-data/results/combined_resnet18_results.json)
         
+        # Count inference samples
+        INFER_COUNT=$(ls -1 model-training/infer_samples/output | wc -l)
+        
         # Create report
         cat << EOF > report.md
         ### Model Training Report
@@ -115,7 +103,11 @@ jobs:
         $METRICS
         \`\`\`
         
-        #### S3 Storage Location
+        #### Validation Set Inference
+        - Number of samples processed: ${INFER_COUNT}
+        - Inference results stored in S3
+        
+        #### Storage Location
         s3://${{ secrets.MODEL_BUCKET }}/${DATETIME}/${COMMIT_ID}/model-data/
         EOF
         

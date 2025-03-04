@@ -4,29 +4,28 @@ import hydra
 from omegaconf import DictConfig
 import torch
 from PIL import Image
+import matplotlib.pyplot as plt
 from torchvision import transforms
 import glob
 from pathlib import Path
-import matplotlib.pyplot as plt
+import json
 
 # Find project root from .project-root file
 def get_project_root():
     """Get project root path from .project-root file"""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     while current_dir != '/':
-        project_root_file = os.path.join(current_dir, '.project-root')
-        if os.path.exists(project_root_file):
-            return current_dir
+        if os.path.exists(os.path.join(os.path.dirname(current_dir), '.project-root')):
+            return os.path.dirname(current_dir)
         current_dir = os.path.dirname(current_dir)
     raise FileNotFoundError("Could not find .project-root file")
 
 # Set PROJECT_ROOT environment variable
 os.environ["PROJECT_ROOT"] = get_project_root()
-
-# Add project root to PYTHONPATH
-sys.path.append(os.environ["PROJECT_ROOT"])
+sys.path.append(os.path.join(os.environ["PROJECT_ROOT"], "model-training"))
 
 from src.models.timm_module import TIMMLightningModule
+from src.data.datamodule import ImageClassificationDataModule
 
 def load_model(model_path):
     """Load the trained model"""
@@ -58,28 +57,71 @@ def process_image(image_path, model, transform, class_names):
     return image, class_names[predicted.item()], confidence.item()
 
 def save_prediction(image, class_name, confidence, output_path):
-    """Save prediction using matplotlib"""
+    """Save image with prediction using matplotlib"""
     plt.figure(figsize=(10, 10))
     plt.imshow(image)
-    plt.axis('off')
-    
-    # Add text with prediction
-    plt.title(f"{class_name}: {confidence:.2%}", 
-              pad=20,
-              fontsize=14,
+    plt.title(f'Prediction: {class_name}\nConfidence: {confidence:.2%}', 
               bbox=dict(facecolor='white', alpha=0.8))
-    
-    # Save figure
-    plt.savefig(output_path, bbox_inches='tight', pad_inches=0.2, dpi=150)
+    plt.axis('off')
+    plt.savefig(output_path, bbox_inches='tight', dpi=300)
     plt.close()
+
+def process_validation_set(cfg, model, transform):
+    """Process all images in the validation set"""
+    # Initialize data module to get class names
+    datamodule = ImageClassificationDataModule(
+        data_dir=cfg.dataset.path,
+        image_size=cfg.dataset.image_size,
+        batch_size=cfg.dataset.batch_size,
+        num_workers=cfg.dataset.num_workers
+    )
+    datamodule.setup()
+    class_names = datamodule.train_dataset.classes
+    
+    # Get validation set directory
+    valid_dir = os.path.join(cfg.dataset.path, 'valid')
+    results = []
+    
+    # Process each class directory
+    for class_name in os.listdir(valid_dir):
+        class_dir = os.path.join(valid_dir, class_name)
+        if not os.path.isdir(class_dir):
+            continue
+            
+        # Process each image in class directory
+        for img_name in os.listdir(class_dir):
+            if not img_name.lower().endswith(('.png', '.jpg', '.jpeg')):
+                continue
+                
+            img_path = os.path.join(class_dir, img_name)
+            image, predicted_class, confidence = process_image(
+                img_path, model, transform, class_names
+            )
+            
+            # Save prediction
+            output_name = f"pred_{class_name}_{Path(img_name).stem}.jpg"
+            output_path = os.path.join(cfg.paths.infer_output_dir, output_name)
+            save_prediction(image, predicted_class, confidence, output_path)
+            
+            # Store result
+            results.append({
+                'image': img_name,
+                'true_class': class_name,
+                'predicted_class': predicted_class,
+                'confidence': confidence
+            })
+    
+    # Save results summary
+    summary_path = os.path.join(cfg.paths.infer_output_dir, 'validation_results.json')
+    with open(summary_path, 'w') as f:
+        json.dump(results, f, indent=4)
+    
+    return results
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg: DictConfig):
-    # Create input/output directories
-    input_dir = cfg.paths.infer_input_dir
-    output_dir = cfg.paths.infer_output_dir
-    os.makedirs(input_dir, exist_ok=True)
-    os.makedirs(output_dir, exist_ok=True)
+    # Create output directories
+    os.makedirs(cfg.paths.infer_output_dir, exist_ok=True)
     
     # Load model
     model_path = os.path.join(
@@ -92,6 +134,16 @@ def main(cfg: DictConfig):
     
     model = load_model(model_path)
     transform = get_transforms(cfg.dataset.image_size)
+    
+    # Check if --valid-set-only flag is present
+    if '--valid-set-only' in sys.argv:
+        results = process_validation_set(cfg, model, transform)
+        print(f"Processed {len(results)} validation set images")
+        return
+    
+    # Regular inference on input directory
+    input_dir = cfg.paths.infer_input_dir
+    os.makedirs(input_dir, exist_ok=True)
     
     # Get class names from the training data directory
     class_names = sorted(os.listdir(os.path.join(cfg.dataset.path, 'train')))
@@ -112,7 +164,7 @@ def main(cfg: DictConfig):
         
         # Save prediction
         output_path = os.path.join(
-            output_dir, 
+            cfg.paths.infer_output_dir, 
             f"pred_{Path(image_path).stem}.jpg"
         )
         save_prediction(image, predicted_class, confidence, output_path)
