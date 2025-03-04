@@ -33,8 +33,8 @@ jobs:
     - name: Configure DVC
       run: |
         # Configure remote with endpoint URL
-        dvc remote add -d s3remote s3://${{ secrets.DVC_BUCKET }}
-        
+        dvc remote add -d s3remote s3://${{ secrets.DVC_BUCKET }} -f
+
     - name: Fetch Data
       run: |
         cd model-training
