@@ -41,11 +41,11 @@ jobs:
         cd model-training
         python src/data/fetch_data.py
 
-    - name: Train model
-      run: |
-        cd model-training
-        export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python src/train.py dataset=combined
+    # - name: Train model
+    #   run: |
+    #     cd model-training
+    #     export PYTHONPATH=$PYTHONPATH:$(pwd)
+    #     python src/train.py dataset=combined
 
     - name: Run Inference on Valid Set
       run: |
@@ -55,8 +55,8 @@ jobs:
         echo $PYTHONPATH
         # Create output directory
         mkdir -p infer_samples/output
-        # Run inference
-        python src/infer.py dataset=combined --valid-set-only
+        # Run inference with Hydra override
+        python src/infer.py dataset=combined validation_only=true
 
     - name: Prepare artifacts for S3
       run: |

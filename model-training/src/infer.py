@@ -135,8 +135,8 @@ def main(cfg: DictConfig):
     model = load_model(model_path)
     transform = get_transforms(cfg.dataset.image_size)
     
-    # Check if --valid-set-only flag is present
-    if '--valid-set-only' in sys.argv:
+    # Check if validation_only flag is set in config
+    if cfg.get('validation_only', False):
         results = process_validation_set(cfg, model, transform)
         print(f"Processed {len(results)} validation set images")
         return

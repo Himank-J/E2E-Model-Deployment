@@ -9,6 +9,7 @@ defaults:
 seed: 42
 data_dir: ${paths.data_dir}
 output_dir: ${paths.output_dir}
+validation_only: false
 
 # Disable hydra working directory creation
 hydra:
