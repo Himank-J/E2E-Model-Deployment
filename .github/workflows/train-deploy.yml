@@ -41,11 +41,11 @@ jobs:
         cd model-training
         python src/data/fetch_data.py
 
-    # - name: Train model
-    #   run: |
-    #     cd model-training
-    #     export PYTHONPATH=$PYTHONPATH:$(pwd)
-    #     python src/train.py dataset=combined
+    - name: Train model
+      run: |
+        cd model-training
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        python src/train.py dataset=combined
 
     - name: Run Inference on Valid Set
       run: |
