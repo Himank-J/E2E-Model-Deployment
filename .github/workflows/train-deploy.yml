@@ -132,6 +132,5 @@ jobs:
         s3://${{ secrets.MODEL_BUCKET }}/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/
         EOF
         
-        # Create CML report
-        cml-publish report.md --md > report.md
-        echo "::set-output name=report::$(cat report.md)" 
+        # Create CML report (using the command from the reference workflow)
+        cml comment create report.md 
