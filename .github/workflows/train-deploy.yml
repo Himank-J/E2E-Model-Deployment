@@ -4,15 +4,14 @@ on:
   push:
     branches: [ develop ]
 
-# Add permissions block at the top level
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
-
 jobs:
   train-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
     
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -105,7 +104,6 @@ jobs:
       id: report
       env:
         REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         # Read metrics from JSON
         METRICS=$(cat model-training/model-data/results/combined_resnet18_results.json)
