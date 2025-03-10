@@ -21,13 +21,17 @@ jobs:
 
     - name: Set Environment Variables
       run: |
-        # Set DATETIME for all subsequent steps
-        echo "DATETIME=$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_ENV
-        echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+        # Set variables
+        DATETIME=$(date +'%Y%m%d_%H%M%S')
+        COMMIT_ID=$(git rev-parse --short HEAD)
         
-        # Debug: Print environment variables
-        echo "Setting DATETIME: ${{ env.DATETIME }}"
-        echo "Setting COMMIT_ID: ${{ env.COMMIT_ID }}"
+        # Set for subsequent steps
+        echo "DATETIME=$DATETIME" >> $GITHUB_ENV
+        echo "COMMIT_ID=$COMMIT_ID" >> $GITHUB_ENV
+        
+        # Debug: Print using shell variables
+        echo "Setting DATETIME: $DATETIME"
+        echo "Setting COMMIT_ID: $COMMIT_ID"
         echo "PYTHONPATH: ${PYTHONPATH}"
 
     - name: Set up Python
