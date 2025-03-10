@@ -41,44 +41,51 @@ jobs:
         cd model-training
         python src/data/fetch_data.py
 
-    - name: Train model
-      run: |
-        cd model-training
-        export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python src/train.py dataset=combined
+    # - name: Train model
+    #   run: |
+    #     cd model-training
+    #     export PYTHONPATH=$PYTHONPATH:$(pwd)
+    #     python src/train.py dataset=combined
 
-    - name: Run Inference on Valid Set
-      run: |
-        cd model-training
-        # Debug: Print current directory and PYTHONPATH
-        pwd
-        echo $PYTHONPATH
-        # Create output directory
-        mkdir -p infer_samples/output
-        # Run inference with Hydra override
-        python src/infer.py dataset=combined validation_only=true
+    # - name: Run Inference on Valid Set
+    #   run: |
+    #     cd model-training
+    #     # Debug: Print current directory and PYTHONPATH
+    #     pwd
+    #     echo $PYTHONPATH
+    #     # Create output directory
+    #     mkdir -p infer_samples/output
+    #     # Run inference with Hydra override
+    #     python src/infer.py dataset=combined validation_only=true
 
     - name: Prepare artifacts for S3
       run: |
+        # Get commit ID and datetime
         COMMIT_ID=$(git rev-parse --short HEAD)
         DATETIME=$(date +'%Y%m%d_%H%M%S')
         
-        # Create directory structure
-        mkdir -p "${DATETIME}/${COMMIT_ID}/model-data/results"
-        mkdir -p "${DATETIME}/${COMMIT_ID}/model-data/model-weights"
-        mkdir -p "${DATETIME}/${COMMIT_ID}/model-data/inference"
+        echo "Creating directories for artifacts..."
+        # Create base directory first
+        mkdir -p artifacts
         
+        # Create full directory structure
+        mkdir -p "artifacts/${DATETIME}/${COMMIT_ID}/model-data/results"
+        mkdir -p "artifacts/${DATETIME}/${COMMIT_ID}/model-data/model-weights"
+        mkdir -p "artifacts/${DATETIME}/${COMMIT_ID}/model-data/inference"
+        
+        echo "Copying artifacts..."
         # Copy results, model weights, and inference results
-        cp model-training/model-data/results/*.json "${DATETIME}/${COMMIT_ID}/model-data/results/"
-        cp model-training/model-data/models/*.ckpt "${DATETIME}/${COMMIT_ID}/model-data/model-weights/"
-        cp -r model-training/infer_samples/output/* "${DATETIME}/${COMMIT_ID}/model-data/inference/"
+        cp -v model-training/model-data/results/*.json "artifacts/${DATETIME}/${COMMIT_ID}/model-data/results/"
+        cp -v model-training/model-data/models/*.ckpt "artifacts/${DATETIME}/${COMMIT_ID}/model-data/model-weights/"
+        cp -rv model-training/infer_samples/output/* "artifacts/${DATETIME}/${COMMIT_ID}/model-data/inference/"
 
     - name: Upload to S3
       run: |
         COMMIT_ID=$(git rev-parse --short HEAD)
         DATETIME=$(date +'%Y%m%d_%H%M%S')
         
-        aws s3 sync "${DATETIME}/${COMMIT_ID}/model-data/" s3://${{ secrets.MODEL_BUCKET }}/${DATETIME}/${COMMIT_ID}/model-data/
+        echo "Uploading to S3..."
+        aws s3 sync "artifacts/${DATETIME}/${COMMIT_ID}/model-data/" s3://${{ secrets.MODEL_BUCKET }}/${DATETIME}/${COMMIT_ID}/model-data/
 
     - uses: iterative/setup-cml@v2
 
