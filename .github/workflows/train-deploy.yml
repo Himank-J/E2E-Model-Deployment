@@ -12,7 +12,6 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-      DATETIME: $(date +'%Y%m%d_%H%M%S')
       PYTHONPATH: /home/runner/work/E2E-Model-Deployment/E2E-Model-Deployment/model-training
 
     steps:
@@ -20,15 +19,21 @@ jobs:
       with:
         fetch-depth: 0 
 
+    - name: Set Environment Variables
+      run: |
+        # Set DATETIME for all subsequent steps
+        echo "DATETIME=$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_ENV
+        echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+        
+        # Debug: Print environment variables
+        echo "Setting DATETIME: ${{ env.DATETIME }}"
+        echo "Setting COMMIT_ID: ${{ env.COMMIT_ID }}"
+        echo "PYTHONPATH: ${PYTHONPATH}"
+
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
         python-version: '3.10'
-
-    - name: Static Environment variables
-      run: |
-        echo "DATETIME: ${DATETIME}"
-        echo "PYTHONPATH: ${PYTHONPATH}"
 
     - name: Install dependencies
       run: |
@@ -65,30 +70,25 @@ jobs:
 
     - name: Prepare artifacts for S3
       run: |
-        # Get commit ID and datetime
-        COMMIT_ID=$(git rev-parse --short HEAD)
-        
         echo "Creating directories for artifacts..."
         # Create base directory first
         mkdir -p artifacts
         
-        # Create full directory structure
-        mkdir -p "artifacts/${DATETIME}/${COMMIT_ID}/model-data/results"
-        mkdir -p "artifacts/${DATETIME}/${COMMIT_ID}/model-data/model-weights"
-        mkdir -p "artifacts/${DATETIME}/${COMMIT_ID}/model-data/inference"
+        # Create full directory structure using environment variables
+        mkdir -p "artifacts/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/results"
+        mkdir -p "artifacts/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/model-weights"
+        mkdir -p "artifacts/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/inference"
         
         echo "Copying artifacts..."
         # Copy results, model weights, and inference results
-        cp -v model-training/model-data/results/*.json "artifacts/${DATETIME}/${COMMIT_ID}/model-data/results/"
-        cp -v model-training/model-data/models/*.ckpt "artifacts/${DATETIME}/${COMMIT_ID}/model-data/model-weights/"
-        cp -rv model-training/infer_samples/output/* "artifacts/${DATETIME}/${COMMIT_ID}/model-data/inference/"
+        cp -v model-training/model-data/results/*.json "artifacts/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/results/"
+        cp -v model-training/model-data/models/*.ckpt "artifacts/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/model-weights/"
+        cp -rv model-training/infer_samples/output/* "artifacts/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/inference/"
 
     - name: Upload to S3
       run: |
-        COMMIT_ID=$(git rev-parse --short HEAD)
-        
         echo "Uploading to S3..."
-        aws s3 sync "artifacts/${DATETIME}/${COMMIT_ID}/model-data/" s3://${{ secrets.MODEL_BUCKET }}/${DATETIME}/${COMMIT_ID}/model-data/
+        aws s3 sync "artifacts/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/" s3://${{ secrets.MODEL_BUCKET }}/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/
 
     - uses: iterative/setup-cml@v2
 
@@ -97,8 +97,6 @@ jobs:
       env:
         REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        COMMIT_ID=$(git rev-parse --short HEAD)
-        
         # Read metrics from JSON
         METRICS=$(cat model-training/model-data/results/combined_resnet18_results.json)
         
@@ -108,8 +106,8 @@ jobs:
         # Create report
         cat << EOF > report.md
         ### Model Training Report
-        **Commit:** ${COMMIT_ID}
-        **Timestamp:** ${DATETIME}
+        **Commit:** ${{ env.COMMIT_ID }}
+        **Timestamp:** ${{ env.DATETIME }}
         
         #### Performance Metrics
         \`\`\`json
@@ -121,7 +119,7 @@ jobs:
         - Inference results stored in S3
         
         #### Storage Location
-        s3://${{ secrets.MODEL_BUCKET }}/${DATETIME}/${COMMIT_ID}/model-data/
+        s3://${{ secrets.MODEL_BUCKET }}/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/
         EOF
         
         # Create CML report
