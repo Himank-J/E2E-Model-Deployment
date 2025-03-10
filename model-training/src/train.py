@@ -7,6 +7,7 @@ from pytorch_lightning import seed_everything
 import glob
 import json
 from datetime import datetime
+import torch
 
 # Find project root from .project-root file
 def get_project_root():
@@ -86,12 +87,12 @@ def main(cfg: DictConfig):
     # Test model
     test_results = trainer.test(model, datamodule=datamodule)
     
-    # Prepare results dictionary
+    # Save results
     results = {
         "dataset": cfg.dataset.name,
         "model": cfg.model.model_name,
         "timestamp": datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
-        "test_results": test_results[0],  # test_results is a list with one dict
+        "test_results": test_results[0],
         "training_config": {
             "max_epochs": cfg.training.max_epochs,
             "batch_size": cfg.dataset.batch_size,
@@ -110,13 +111,11 @@ def main(cfg: DictConfig):
     
     print(f"Test results saved to: {results_path}")
     
-    # Save final model to models directory
-    final_model_path = os.path.join(
-        cfg.paths.models_dir, 
-        f"{cfg.dataset.name}_{cfg.model.model_name}_final.ckpt"
-    )
-    trainer.save_checkpoint(final_model_path)
-    print(f"Model saved to: {final_model_path}")
+    # Save model state dict instead of full checkpoint
+    model_filename = f"{cfg.dataset.name}_{cfg.model.model_name}_final.pt"
+    model_path = os.path.join(cfg.paths.models_dir, model_filename)
+    torch.save(model.state_dict(), model_path)
+    print(f"Model state dict saved to: {model_path}")
 
 if __name__ == "__main__":
     main() 

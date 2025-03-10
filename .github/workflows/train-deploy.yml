@@ -4,6 +4,12 @@ on:
   push:
     branches: [ develop ]
 
+# Add permissions block at the top level
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
   train-and-deploy:
     runs-on: ubuntu-latest
@@ -75,7 +81,6 @@ jobs:
     - name: Prepare artifacts for S3
       run: |
         echo "Creating directories for artifacts..."
-        # Create base directory first
         mkdir -p artifacts
         
         # Create full directory structure using environment variables
@@ -86,7 +91,7 @@ jobs:
         echo "Copying artifacts..."
         # Copy results, model weights, and inference results
         cp -v model-training/model-data/results/*.json "artifacts/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/results/"
-        cp -v model-training/model-data/models/*.ckpt "artifacts/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/model-weights/"
+        cp -v model-training/model-data/models/*.pt "artifacts/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/model-weights/"
         cp -rv model-training/infer_samples/output/* "artifacts/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/inference/"
 
     - name: Upload to S3
@@ -100,6 +105,7 @@ jobs:
       id: report
       env:
         REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         # Read metrics from JSON
         METRICS=$(cat model-training/model-data/results/combined_resnet18_results.json)
@@ -127,4 +133,5 @@ jobs:
         EOF
         
         # Create CML report
-        cml comment create report.md 
+        cml-publish report.md --md > report.md
+        echo "::set-output name=report::$(cat report.md)" 

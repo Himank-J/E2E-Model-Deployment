@@ -27,9 +27,20 @@ sys.path.append(os.path.join(os.environ["PROJECT_ROOT"], "model-training"))
 from src.models.timm_module import TIMMLightningModule
 from src.data.datamodule import ImageClassificationDataModule
 
-def load_model(model_path):
+def load_model(model_path, cfg):
     """Load the trained model"""
-    model = TIMMLightningModule.load_from_checkpoint(model_path)
+    # Initialize model with same configuration
+    model = TIMMLightningModule(
+        model_name=cfg.model.model_name,
+        num_classes=cfg.dataset.num_classes,
+        learning_rate=cfg.model.learning_rate,
+        weight_decay=cfg.model.weight_decay,
+        pretrained=False  # Don't load pretrained weights
+    )
+    
+    # Load state dict
+    state_dict = torch.load(model_path)
+    model.load_state_dict(state_dict)
     model.eval()
     return model
 
@@ -126,13 +137,13 @@ def main(cfg: DictConfig):
     # Load model
     model_path = os.path.join(
         cfg.paths.models_dir,
-        f"{cfg.dataset.name}_{cfg.model.model_name}_final.ckpt"
+        f"{cfg.dataset.name}_{cfg.model.model_name}_final.pt"  # Changed extension to .pt
     )
     
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model not found at {model_path}")
     
-    model = load_model(model_path)
+    model = load_model(model_path, cfg)  # Pass cfg to load_model
     transform = get_transforms(cfg.dataset.image_size)
     
     # Check if validation_only flag is set in config
