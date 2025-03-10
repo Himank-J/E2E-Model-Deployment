@@ -25,6 +25,11 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Static Environment variables
+      run: |
+        echo "DATETIME: ${DATETIME}"
+        echo "PYTHONPATH: ${PYTHONPATH}"
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -62,7 +67,6 @@ jobs:
       run: |
         # Get commit ID and datetime
         COMMIT_ID=$(git rev-parse --short HEAD)
-        DATETIME=$(date +'%Y%m%d_%H%M%S')
         
         echo "Creating directories for artifacts..."
         # Create base directory first
@@ -82,7 +86,6 @@ jobs:
     - name: Upload to S3
       run: |
         COMMIT_ID=$(git rev-parse --short HEAD)
-        DATETIME=$(date +'%Y%m%d_%H%M%S')
         
         echo "Uploading to S3..."
         aws s3 sync "artifacts/${DATETIME}/${COMMIT_ID}/model-data/" s3://${{ secrets.MODEL_BUCKET }}/${DATETIME}/${COMMIT_ID}/model-data/
@@ -95,7 +98,6 @@ jobs:
         REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         COMMIT_ID=$(git rev-parse --short HEAD)
-        DATETIME=$(date +'%Y%m%d_%H%M%S')
         
         # Read metrics from JSON
         METRICS=$(cat model-training/model-data/results/combined_resnet18_results.json)
