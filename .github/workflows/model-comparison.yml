@@ -1,0 +1,60 @@
+name: Model Comparison
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [opened, synchronize]
+
+jobs:
+  compare-models:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install boto3
+
+    - name: Compare Models
+      id: compare
+      run: |
+        # Run comparison script
+        python model-training/src/utils/model_comparison.py \
+          ${{ secrets.MODEL_BUCKET }} \
+          model-training/model-data/results/combined_resnet18_results.json > comparison_report.md
+
+    - name: Comment PR
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('comparison_report.md', 'utf8');
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: report
+          });
+
+    - name: Copy to Latest (on PR merge)
+      if: github.event.pull_request.merged == true
+      run: |
+        # Get current model files
+        aws s3 sync \
+          "s3://${{ secrets.MODEL_BUCKET }}/${{ env.DATETIME }}/${{ env.COMMIT_ID }}/model-data/" \
+          "s3://${{ secrets.MODEL_BUCKET }}/latest/"
