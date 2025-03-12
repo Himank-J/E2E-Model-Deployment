@@ -59,3 +59,5 @@ if __name__ == "__main__":
     # Write report to file
     with open('baseline_report.md', 'w') as f:
         f.write(report) 
+    
+    print("Baseline report generated and saved as baseline_report.md")
