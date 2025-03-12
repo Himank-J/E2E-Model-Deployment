@@ -4,7 +4,7 @@ from datetime import datetime
 import os
 from typing import Dict, Tuple, Optional
 
-def get_latest_model_metrics(bucket: str) -> Tuple[Dict, str]:
+def get_latest_model_metrics(bucket: str) -> Optional[Tuple[Dict, str]]:
     """Get metrics from the most recent model in S3"""
     s3 = boto3.client('s3')
     
@@ -13,43 +13,53 @@ def get_latest_model_metrics(bucket: str) -> Tuple[Dict, str]:
         Bucket=bucket,
         Delimiter='/'
     )
-    print('response', response)
+
     # Get the latest date directory
     date_prefixes = [p['Prefix'] for p in response.get('CommonPrefixes', [])]
     if not date_prefixes:
-        raise ValueError("No model directories found in S3")
+        return None
     
-    print('date_prefixes', date_prefixes)
     latest_date = max(date_prefixes)
-    
-    print('latest_date', latest_date)
+
     # List commit directories in the latest date
     response = s3.list_objects_v2(
         Bucket=bucket,
         Prefix=latest_date,
         Delimiter='/'
     )
-    print('response', response)
+
     # Get the latest commit
     commit_prefixes = [p['Prefix'] for p in response.get('CommonPrefixes', [])]
     if not commit_prefixes:
-        raise ValueError(f"No commits found in directory {latest_date}")
+        return None
     
     latest_commit = commit_prefixes[-1]  # Last commit in the date directory
-    print('latest_commit', latest_commit)
+
     # Get the metrics file
     metrics_key = f"{latest_commit}model-data/results/combined_resnet18_results.json"
-    print('metrics_key', metrics_key)
     try:
         response = s3.get_object(Bucket=bucket, Key=metrics_key)
         metrics = json.loads(response['Body'].read().decode('utf-8'))
-        print('metrics', metrics)
         return metrics, latest_commit
     except Exception as e:
-        raise ValueError(f"Error reading metrics from S3: {str(e)}")
+        return None
 
-def compare_models(current_metrics: Dict, previous_metrics: Dict) -> Dict:
+def compare_models(current_metrics: Dict, previous_metrics: Optional[Dict]) -> Dict:
     """Compare current and previous model metrics"""
+    
+    if previous_metrics is None:
+        # No previous model, return current metrics as baseline
+        return {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "current_model": {
+                "commit": os.getenv("GITHUB_SHA", "unknown")[:7],
+                "trained_at": current_metrics["timestamp"],
+                "accuracy": current_metrics["test_results"]["test_acc"]
+            },
+            "previous_model": None,
+            "changes": None,
+            "config_changes": None
+        }
     
     def format_change(current: float, previous: float) -> str:
         change = ((current - previous) / previous) * 100
@@ -91,41 +101,60 @@ def compare_models(current_metrics: Dict, previous_metrics: Dict) -> Dict:
 def generate_comparison_report(comparison: Dict) -> str:
     """Generate a markdown report from the comparison"""
     
-    report = [
-        "## 🔄 Model Performance Comparison",
-        "",
-        "### 📊 Performance Metrics",
-        "",
-        "| Metric | Previous Model | Current Model | Change |",
-        "|--------|---------------|---------------|--------|",
-        f"| Accuracy | {comparison['previous_model']['accuracy']:.4f} | {comparison['current_model']['accuracy']:.4f} | {comparison['changes']['accuracy']} |",
-        "",
-    ]
-    
-    if comparison["config_changes"]:
-        report.extend([
-            "### ⚙️ Configuration Changes",
+    if comparison["previous_model"] is None:
+        # Generate baseline report
+        report = [
+            "### Model Training Report",
             "",
-            "| Parameter | Previous Value | New Value |",
-            "|-----------|----------------|-----------|"
-        ])
+            f"**Commit:** {comparison['current_model']['commit']}",
+            f"**Timestamp:** {comparison['current_model']['trained_at']}",
+            "",
+            "#### Performance Metrics",
+            "```json",
+            json.dumps({
+                "accuracy": comparison["current_model"]["accuracy"]
+            }, indent=2),
+            "```",
+            "",
+            "#### No previous model to compare with.",
+            ""
+        ]
+    else:
+        # Generate comparison report
+        report = [
+            "## 🔄 Model Performance Comparison",
+            "",
+            "### 📊 Performance Metrics",
+            "",
+            "| Metric | Previous Model | Current Model | Change |",
+            "|--------|---------------|---------------|--------|",
+            f"| Accuracy | {comparison['previous_model']['accuracy']:.4f} | {comparison['current_model']['accuracy']:.4f} | {comparison['changes']['accuracy']} |",
+            "",
+        ]
         
-        for param, change in comparison["config_changes"].items():
-            report.append(f"| {param} | {change['from']} | {change['to']} |")
-    
-    report.extend([
-        "",
-        "### 📝 Details",
-        "",
-        f"- Previous Model Trained: {comparison['previous_model']['trained_at']}",
-        f"- Current Model Trained: {comparison['current_model']['trained_at']}",
-        f"- Comparison Generated: {comparison['timestamp']}"
-    ])
+        if comparison["config_changes"]:
+            report.extend([
+                "### ⚙️ Configuration Changes",
+                "",
+                "| Parameter | Previous Value | New Value |",
+                "|-----------|----------------|-----------|"
+            ])
+            
+            for param, change in comparison["config_changes"].items():
+                report.append(f"| {param} | {change['from']} | {change['to']} |")
+        
+        report.extend([
+            "",
+            "### 📝 Details",
+            "",
+            f"- Previous Model Trained: {comparison['previous_model']['trained_at']}",
+            f"- Current Model Trained: {comparison['current_model']['trained_at']}",
+            f"- Comparison Generated: {comparison['timestamp']}"
+        ])
     
     return "\n".join(report)
 
 if __name__ == "__main__":
-    # This can be run directly for testing
     import sys
     
     if len(sys.argv) != 3:
@@ -145,5 +174,11 @@ if __name__ == "__main__":
     # Compare models
     comparison = compare_models(current_metrics, previous_metrics)
     
-    # Generate and print report
+    # Generate report
     report = generate_comparison_report(comparison)
+    
+    # Save report to file
+    with open('comparison_report.md', 'w') as f:
+        f.write(report)
+    
+    print("Comparison report generated and saved as comparison_report.md")
