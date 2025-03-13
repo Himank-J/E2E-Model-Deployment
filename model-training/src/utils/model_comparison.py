@@ -2,10 +2,10 @@ import json
 import boto3
 from datetime import datetime
 import os
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, List
 
-def get_latest_model_metrics(bucket: str) -> Optional[Tuple[Dict, str]]:
-    """Get metrics from the most recent model in S3"""
+def get_two_latest_models(bucket: str) -> Tuple[Optional[Dict], Optional[Dict]]:
+    """Get metrics from the two most recent models in S3"""
     s3 = boto3.client('s3')
     
     # List all date-based directories
@@ -13,36 +13,61 @@ def get_latest_model_metrics(bucket: str) -> Optional[Tuple[Dict, str]]:
         Bucket=bucket,
         Delimiter='/'
     )
-
-    # Get the latest date directory
+    
+    # Get all date prefixes and sort them
     date_prefixes = [p['Prefix'] for p in response.get('CommonPrefixes', [])]
     if not date_prefixes:
-        return None
+        return None, None
     
-    latest_date = max(date_prefixes)
-
-    # List commit directories in the latest date
-    response = s3.list_objects_v2(
-        Bucket=bucket,
-        Prefix=latest_date,
-        Delimiter='/'
-    )
-
-    # Get the latest commit
-    commit_prefixes = [p['Prefix'] for p in response.get('CommonPrefixes', [])]
-    if not commit_prefixes:
-        return None
+    # Sort date prefixes in descending order (most recent first)
+    date_prefixes.sort(reverse=True)
     
-    latest_commit = commit_prefixes[-1]  # Last commit in the date directory
-
-    # Get the metrics file
-    metrics_key = f"{latest_commit}model-data/results/combined_resnet18_results.json"
-    try:
-        response = s3.get_object(Bucket=bucket, Key=metrics_key)
-        metrics = json.loads(response['Body'].read().decode('utf-8'))
-        return metrics, latest_commit
-    except Exception as e:
-        return None
+    # Get the two most recent dates
+    latest_dates = date_prefixes[:2]
+    print(f"Found date directories: {latest_dates}")  
+    
+    metrics_list = []
+    for date_prefix in latest_dates:
+        # List commit directories in each date
+        response = s3.list_objects_v2(
+            Bucket=bucket,
+            Prefix=date_prefix,
+            Delimiter='/'
+        )
+        
+        # Get all commit directories for this date
+        commit_prefixes = [p['Prefix'] for p in response.get('CommonPrefixes', [])]
+        if not commit_prefixes:
+            continue
+            
+        print(f"Found commits for {date_prefix}: {commit_prefixes}") 
+        
+        # For each date, get the latest commit
+        latest_commit = commit_prefixes[-1]
+        
+        # Construct the full path to metrics file
+        metrics_key = f"{latest_commit}model-data/results/combined_resnet18_results.json"
+        print(f"Looking for metrics at: {metrics_key}")  
+        
+        try:
+            response = s3.get_object(Bucket=bucket, Key=metrics_key)
+            metrics = json.loads(response['Body'].read().decode('utf-8'))
+            # Add commit info to metrics
+            metrics['commit_id'] = latest_commit.rstrip('/').split('/')[-1]
+            metrics['run_date'] = date_prefix.rstrip('/')
+            metrics_list.append(metrics)
+            print(f"Successfully loaded metrics from {metrics_key}")  
+        except Exception as e:
+            print(f"Error reading metrics from {metrics_key}: {str(e)}")
+            continue
+    
+    # Return the two most recent metrics
+    if len(metrics_list) == 0:
+        return None, None
+    elif len(metrics_list) == 1:
+        return metrics_list[0], None
+    else:
+        return metrics_list[0], metrics_list[1]  # current, previous
 
 def compare_models(current_metrics: Dict, previous_metrics: Optional[Dict]) -> Dict:
     """Compare current and previous model metrics"""
@@ -52,7 +77,8 @@ def compare_models(current_metrics: Dict, previous_metrics: Optional[Dict]) -> D
         return {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "current_model": {
-                "commit": os.getenv("GITHUB_SHA", "unknown")[:7],
+                "commit": current_metrics['commit_id'],
+                "run_date": current_metrics['run_date'],
                 "trained_at": current_metrics["timestamp"],
                 "accuracy": current_metrics["test_results"]["test_acc"]
             },
@@ -68,12 +94,14 @@ def compare_models(current_metrics: Dict, previous_metrics: Optional[Dict]) -> D
     comparison = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "current_model": {
-            "commit": os.getenv("GITHUB_SHA", "unknown")[:7],
+            "commit": current_metrics['commit_id'],
+            "run_date": current_metrics['run_date'],
             "trained_at": current_metrics["timestamp"],
             "accuracy": current_metrics["test_results"]["test_acc"]
         },
         "previous_model": {
-            "commit": "previous",
+            "commit": previous_metrics['commit_id'],
+            "run_date": previous_metrics['run_date'],
             "trained_at": previous_metrics["timestamp"],
             "accuracy": previous_metrics["test_results"]["test_acc"]
         },
@@ -157,19 +185,18 @@ def generate_comparison_report(comparison: Dict) -> str:
 if __name__ == "__main__":
     import sys
     
-    if len(sys.argv) != 3:
-        print("Usage: python model_comparison.py <s3_bucket> <current_metrics_path>")
+    if len(sys.argv) != 2:
+        print("Usage: python model_comparison.py <s3_bucket>")
         sys.exit(1)
     
     bucket = sys.argv[1]
-    current_metrics_path = sys.argv[2]
     
-    # Load current metrics
-    with open(current_metrics_path) as f:
-        current_metrics = json.load(f)
+    # Get the two most recent models from S3
+    current_metrics, previous_metrics = get_two_latest_models(bucket)
     
-    # Get previous metrics from S3
-    previous_metrics, latest_commit = get_latest_model_metrics(bucket)
+    if current_metrics is None:
+        print("No models found in S3")
+        sys.exit(1)
     
     # Compare models
     comparison = compare_models(current_metrics, previous_metrics)

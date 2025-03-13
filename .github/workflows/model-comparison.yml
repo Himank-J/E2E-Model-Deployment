@@ -33,10 +33,9 @@ jobs:
     - name: Compare Models
       id: compare
       run: |
-        # Run comparison script
+        # Run comparison script with only S3 bucket
         python model-training/src/utils/model_comparison.py \
-          ${{ secrets.MODEL_BUCKET }} \
-          model-training/model-data/results/combined_resnet18_results.json > comparison_report.md
+          ${{ secrets.MODEL_BUCKET }}
 
     - name: Comment PR
       uses: actions/github-script@v6
