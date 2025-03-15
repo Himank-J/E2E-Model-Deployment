@@ -182,6 +182,58 @@ def generate_comparison_report(comparison: Dict) -> str:
     
     return "\n".join(report)
 
+def copy_to_latest(s3_client, bucket: str, source_prefix: str):
+    """Copy model artifacts to the latest directory"""
+    # List all objects under the source prefix
+    response = s3_client.list_objects_v2(
+        Bucket=bucket,
+        Prefix=source_prefix
+    )
+    
+    # Copy each object to the latest directory
+    for obj in response.get('Contents', []):
+        source_key = obj['Key']
+        # Remove the datetime and commit prefix to get relative path
+        relative_path = '/'.join(source_key.split('/')[2:])  # Skip datetime and commit folders
+        target_key = f"latest/{relative_path}"
+        
+        print(f"Copying {source_key} to {target_key}")
+        
+        # Copy object
+        s3_client.copy_object(
+            Bucket=bucket,
+            CopySource={'Bucket': bucket, 'Key': source_key},
+            Key=target_key
+        )
+
+def select_best_model(current_metrics: Dict, previous_metrics: Optional[Dict], bucket: str):
+    """Select the best model based on accuracy and copy to latest"""
+    s3 = boto3.client('s3')
+    
+    if previous_metrics is None:
+        # If no previous model, current is best by default
+        source_prefix = f"{current_metrics['run_date']}/{current_metrics['commit_id']}/model-data/"
+        copy_to_latest(s3, bucket, source_prefix)
+        return "Current model copied to latest (no previous model for comparison)"
+    
+    current_acc = current_metrics["test_results"]["test_acc"]
+    previous_acc = previous_metrics["test_results"]["test_acc"]
+    
+    # Compare accuracies
+    if current_acc > previous_acc:
+        source_prefix = f"{current_metrics['run_date']}/{current_metrics['commit_id']}/model-data/"
+        copy_to_latest(s3, bucket, source_prefix)
+        return f"Current model copied to latest (accuracy: {current_acc:.4f} > {previous_acc:.4f})"
+    elif current_acc < previous_acc:
+        source_prefix = f"{previous_metrics['run_date']}/{previous_metrics['commit_id']}/model-data/"
+        copy_to_latest(s3, bucket, source_prefix)
+        return f"Previous model copied to latest (accuracy: {previous_acc:.4f} > {current_acc:.4f})"
+    else:
+        # If accuracies are equal, use the most recent model
+        source_prefix = f"{current_metrics['run_date']}/{current_metrics['commit_id']}/model-data/"
+        copy_to_latest(s3, bucket, source_prefix)
+        return f"Current model copied to latest (equal accuracy: {current_acc:.4f}, using most recent)"
+
 if __name__ == "__main__":
     import sys
     
@@ -203,6 +255,12 @@ if __name__ == "__main__":
     
     # Generate report
     report = generate_comparison_report(comparison)
+    
+    # Select best model and copy to latest
+    latest_update = select_best_model(current_metrics, previous_metrics, bucket)
+    
+    # Add latest update info to report
+    report += f"\n\n### 📦 Latest Model Update\n{latest_update}"
     
     # Save report to file
     with open('comparison_report.md', 'w') as f:
