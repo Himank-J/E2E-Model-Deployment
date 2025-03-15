@@ -1,5 +1,5 @@
-gradio==5.6.0
-timm==1.0.9
-torch==2.4.1
-torchvision==0.19.1
+gradio
+timm
+torch
+torchvision
 boto3
