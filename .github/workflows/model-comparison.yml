@@ -51,7 +51,6 @@ jobs:
           });
 
     - name: Copy to Latest (on PR merge)
-      if: github.event.pull_request.merged == true
       run: |
         # Get current model files
         aws s3 sync \
