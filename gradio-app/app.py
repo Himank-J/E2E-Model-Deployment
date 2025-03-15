@@ -66,7 +66,7 @@ iface = gr.Interface(
     examples=[
         ["examples/basketball.png"],
         ["examples/boxing.png"],
-        ["examples/building.png"],
+        ["examples/buildings.png"],
         ["examples/cricket.png"],
         ["examples/football.png"],
         ["examples/forest.png"],
