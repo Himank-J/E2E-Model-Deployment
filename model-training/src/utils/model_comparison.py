@@ -182,6 +182,81 @@ def generate_comparison_report(comparison: Dict) -> str:
     
     return "\n".join(report)
 
+def copy_to_latest(s3_client, bucket: str, source_prefix: str):
+    """Copy model weights to the latest directory, replacing any existing content"""
+    # First, delete existing content in latest directory
+    try:
+        # List all objects in latest directory
+        response = s3_client.list_objects_v2(
+            Bucket=bucket,
+            Prefix='latest/'
+        )
+        
+        # Delete all existing objects in latest
+        for obj in response.get('Contents', []):
+            print(f"Deleting existing object: {obj['Key']}")
+            s3_client.delete_object(
+                Bucket=bucket,
+                Key=obj['Key']
+            )
+    except Exception as e:
+        print(f"Warning: Error cleaning latest directory: {str(e)}")
+
+    # Find and copy only the model weights file
+    try:
+        # List objects in source directory
+        response = s3_client.list_objects_v2(
+            Bucket=bucket,
+            Prefix=f"{source_prefix}model-weights/"
+        )
+        
+        # Find and copy the .pt file
+        for obj in response.get('Contents', []):
+            if obj['Key'].endswith('.pt'):
+                source_key = obj['Key']
+                target_key = 'latest/model.pt'  # Standardized name in latest directory
+                
+                print(f"Copying model weights from {source_key} to {target_key}")
+                
+                # Copy model weights
+                s3_client.copy_object(
+                    Bucket=bucket,
+                    CopySource={'Bucket': bucket, 'Key': source_key},
+                    Key=target_key
+                )
+                break  # Assuming there's only one .pt file
+                
+    except Exception as e:
+        raise Exception(f"Error copying model weights: {str(e)}")
+
+def select_best_model(current_metrics: Dict, previous_metrics: Optional[Dict], bucket: str):
+    """Select the best model based on accuracy and copy to latest"""
+    s3 = boto3.client('s3')
+    
+    if previous_metrics is None:
+        # If no previous model, current is best by default
+        source_prefix = f"{current_metrics['run_date']}/{current_metrics['commit_id']}/model-data/"
+        copy_to_latest(s3, bucket, source_prefix)
+        return "Current model copied to latest (no previous model for comparison)"
+    
+    current_acc = current_metrics["test_results"]["test_acc"]
+    previous_acc = previous_metrics["test_results"]["test_acc"]
+    
+    # Compare accuracies
+    if current_acc > previous_acc:
+        source_prefix = f"{current_metrics['run_date']}/{current_metrics['commit_id']}/model-data/"
+        copy_to_latest(s3, bucket, source_prefix)
+        return f"Current model copied to latest (accuracy: {current_acc:.4f} > {previous_acc:.4f})"
+    elif current_acc < previous_acc:
+        source_prefix = f"{previous_metrics['run_date']}/{previous_metrics['commit_id']}/model-data/"
+        copy_to_latest(s3, bucket, source_prefix)
+        return f"Previous model copied to latest (accuracy: {previous_acc:.4f} > {current_acc:.4f})"
+    else:
+        # If accuracies are equal, use the most recent model
+        source_prefix = f"{current_metrics['run_date']}/{current_metrics['commit_id']}/model-data/"
+        copy_to_latest(s3, bucket, source_prefix)
+        return f"Current model copied to latest (equal accuracy: {current_acc:.4f}, using most recent)"
+
 if __name__ == "__main__":
     import sys
     
@@ -203,6 +278,12 @@ if __name__ == "__main__":
     
     # Generate report
     report = generate_comparison_report(comparison)
+    
+    # Select best model and copy to latest
+    latest_update = select_best_model(current_metrics, previous_metrics, bucket)
+    
+    # Add latest update info to report
+    report += f"\n\n### 📦 Latest Model Update\n{latest_update}"
     
     # Save report to file
     with open('comparison_report.md', 'w') as f:
