@@ -31,18 +31,6 @@ jobs:
     - name: Log in to Hugging Face
       run: python -c 'import huggingface_hub; huggingface_hub.login(token="${{ secrets.hf_token }}")'
 
-    - name: Create AWS Credentials File
-      run: |
-        cd gradio-app
-        mkdir -p .aws
-        echo "[default]
-        aws_access_key_id = ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws_secret_access_key = ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        region = ${{ secrets.AWS_REGION }}" > .aws/credentials
-        
-        # Add .aws directory to files to be deployed
-        echo ".aws/" >> README.md
-
     - name: Deploy to Spaces
       run: |
         cd gradio-app

@@ -17,9 +17,6 @@ class ModelLoader:
         # Create directories if they don't exist
         os.makedirs('model', exist_ok=True)
         
-        # Set AWS credentials path
-        self.aws_credentials_path = self.get_aws_credentials_path()
-        
         # Download and load model
         self.download_latest_model()
         self.model = self.load_model()
@@ -28,31 +25,16 @@ class ModelLoader:
         self.labels = self.get_labels()
         self.facts = self.get_facts()
         
-    def get_aws_credentials_path(self):
-        """Get the path to AWS credentials file"""
-        # Check current directory first
-        local_aws_dir = Path('.aws')
-        if local_aws_dir.exists():
-            return local_aws_dir
-        
-        # Check home directory next
-        home_aws_dir = Path.home() / '.aws'
-        if home_aws_dir.exists():
-            return home_aws_dir
-        
-        raise FileNotFoundError("AWS credentials directory not found")
-        
     def download_latest_model(self):
         """Download the latest model from S3"""
         try:
-            # Create boto3 session with specific credentials file
-            session = boto3.Session(
-                profile_name='default',
-                shared_credentials_file=str(self.aws_credentials_path / 'credentials')
+            # Create S3 client using environment variables
+            s3 = boto3.client(
+                's3',
+                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+                region_name=os.getenv('AWS_DEFAULT_REGION')
             )
-            
-            # Create S3 client using the session
-            s3 = session.client('s3')
             
             # Download the model
             s3.download_file(
