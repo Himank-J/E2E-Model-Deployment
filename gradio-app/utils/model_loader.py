@@ -5,6 +5,7 @@ import os
 import json
 from torchvision import transforms
 import timm
+from pathlib import Path
 
 class ModelLoader:
     def __init__(self, bucket_name: str, model_name: str = "resnet18", num_classes: int = 13):
@@ -16,6 +17,9 @@ class ModelLoader:
         # Create directories if they don't exist
         os.makedirs('model', exist_ok=True)
         
+        # Set AWS credentials path
+        self.aws_credentials_path = self.get_aws_credentials_path()
+        
         # Download and load model
         self.download_latest_model()
         self.model = self.load_model()
@@ -24,10 +28,33 @@ class ModelLoader:
         self.labels = self.get_labels()
         self.facts = self.get_facts()
         
+    def get_aws_credentials_path(self):
+        """Get the path to AWS credentials file"""
+        # Check current directory first
+        local_aws_dir = Path('.aws')
+        if local_aws_dir.exists():
+            return local_aws_dir
+        
+        # Check home directory next
+        home_aws_dir = Path.home() / '.aws'
+        if home_aws_dir.exists():
+            return home_aws_dir
+        
+        raise FileNotFoundError("AWS credentials directory not found")
+        
     def download_latest_model(self):
         """Download the latest model from S3"""
-        s3 = boto3.client('s3')
         try:
+            # Create boto3 session with specific credentials file
+            session = boto3.Session(
+                profile_name='default',
+                aws_shared_credentials_file=str(self.aws_credentials_path / 'credentials')
+            )
+            
+            # Create S3 client using the session
+            s3 = session.client('s3')
+            
+            # Download the model
             s3.download_file(
                 self.bucket_name,
                 'latest/model.pt',
