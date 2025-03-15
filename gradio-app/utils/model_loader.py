@@ -53,7 +53,16 @@ class ModelLoader:
             pretrained=False,
             num_classes=self.num_classes
         )
-        model.load_state_dict(torch.load('model/latest_model.pt', map_location=self.device))
+        
+        # Load state dict
+        state_dict = torch.load('model/latest_model.pt', map_location=self.device)
+        
+        # Remove 'model.' prefix from state dict keys if present
+        if all(k.startswith('model.') for k in state_dict.keys()):
+            state_dict = {k.replace('model.', ''): v for k, v in state_dict.items()}
+        
+        # Load the modified state dict
+        model.load_state_dict(state_dict)
         model.eval()
         return model
     
