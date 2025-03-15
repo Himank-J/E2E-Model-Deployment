@@ -48,7 +48,7 @@ class ModelLoader:
             # Create boto3 session with specific credentials file
             session = boto3.Session(
                 profile_name='default',
-                aws_shared_credentials_file=str(self.aws_credentials_path / 'credentials')
+                shared_credentials_file=str(self.aws_credentials_path / 'credentials')
             )
             
             # Create S3 client using the session
