@@ -56,3 +56,6 @@ data/
 
 # model-data
 model-data/
+
+# cdk
+cdk.out/
